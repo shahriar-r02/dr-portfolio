@@ -3,7 +3,7 @@ import { db, auth, storage } from '../firebase/config'
 import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth'
-import { CheckCircle, Truck, Trash2, Lock, LogOut, Plus, X, Save, Edit3, Upload } from 'lucide-react'
+import { CheckCircle, Truck, Trash2, Lock, LogOut, Plus, X, Save, Edit3, Upload, FileText, Unlock } from 'lucide-react'
 
 function Admin() {
   const [loggedIn, setLoggedIn] = useState(false)
@@ -18,6 +18,21 @@ function Admin() {
   const [loading, setLoading] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
   const [uploadingIndex, setUploadingIndex] = useState(null)
+
+  // Lecture Notes CMS States
+  const [noteCategories, setNoteCategories] = useState([])
+  const [notePayments, setNotePayments] = useState([])
+  const [newCatTitle, setNewCatTitle] = useState('')
+  const [newCatDesc, setNewCatDesc] = useState('')
+  const [newCatPrice, setNewCatPrice] = useState('')
+  const [showCatNoteForm, setShowCatNoteForm] = useState(false)
+
+  const [noteTitle, setNoteTitle] = useState('')
+  const [selectedNoteCategory, setSelectedNoteCategory] = useState('')
+  const [fullPdf, setFullPdf] = useState(null)
+  const [previewPdf, setPreviewPdf] = useState(null)
+  const [noteUploading, setNoteUploading] = useState(false)
+  const [showNoteForm, setShowNoteForm] = useState(false)
 
   const [newBlog, setNewBlog] = useState({ title: '', excerpt: '', category: 'Study Tips', emoji: '📚' })
   const [showBlogForm, setShowBlogForm] = useState(false)
@@ -80,6 +95,8 @@ function Admin() {
     fetchBlogs()
     fetchVideos()
     fetchCategories()
+    fetchNoteCategories()
+    fetchNotePayments()
     fetchSettings('about', setAbout)
     fetchSettings('book', setBook)
     fetchSettings('contact', setContact)
@@ -103,6 +120,16 @@ function Admin() {
   const fetchCategories = async () => {
     const snap = await getDocs(collection(db, 'videoCategories'))
     setCategoriesList(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)))
+  }
+
+  const fetchNoteCategories = async () => {
+    const snap = await getDocs(collection(db, 'noteCategories'))
+    setNoteCategories(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  }
+
+  const fetchNotePayments = async () => {
+    const snap = await getDocs(collection(db, 'notePayments'))
+    setNotePayments(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   }
 
   const fetchSettings = async (docId, setter) => {
@@ -150,6 +177,75 @@ function Admin() {
       console.log('Upload error:', err)
     }
     setUploadingIndex(null)
+  }
+
+  const handleCreateNoteCategory = async (e) => {
+    e.preventDefault()
+    const cleanId = newCatTitle.toLowerCase().trim().replace(/[^a-z0-9]/g, '-')
+    await setDoc(doc(db, 'noteCategories', cleanId), {
+      title: newCatTitle,
+      description: newCatDesc,
+      price: Number(newCatPrice),
+      createdAt: serverTimestamp()
+    })
+    setNewCatTitle(''); setNewCatDesc(''); setNewCatPrice('')
+    setShowCatNoteForm(false)
+    fetchNoteCategories()
+  }
+
+  const handleUploadNote = async (e) => {
+    e.preventDefault()
+    if (!fullPdf || !previewPdf || !selectedNoteCategory) return alert('Please select a category and upload both full and preview PDFs.')
+    setNoteUploading(true)
+    try {
+      const fullRef = ref(storage, `notes/full-${Date.now()}_${fullPdf.name}`)
+      const previewRef = ref(storage, `notes/preview-${Date.now()}_${previewPdf.name}`)
+
+      const fullSnap = await uploadBytes(fullRef, fullPdf)
+      const previewSnap = await uploadBytes(previewRef, previewPdf)
+
+      const fullUrl = await getDownloadURL(fullSnap.ref)
+      const previewUrl = await getDownloadURL(previewSnap.ref)
+
+      await addDoc(collection(db, 'notes'), {
+        title: noteTitle,
+        categoryId: selectedNoteCategory,
+        pdfUrl: fullUrl,
+        previewUrl: previewUrl,
+        createdAt: serverTimestamp()
+      })
+
+      setNoteTitle(''); setFullPdf(null); setPreviewPdf(null)
+      setShowNoteForm(false)
+      alert('Chapter note sync finalized successfully!')
+    } catch (err) {
+      console.log('Note upload error:', err)
+    } finally {
+      setNoteUploading(false)
+    }
+  }
+
+  const handleApproveNotePayment = async (ticket) => {
+    try {
+      const userRef = doc(db, 'users', ticket.userId)
+      const userSnap = await getDoc(userRef)
+      
+      let currentUnlocked = []
+      if (userSnap.exists()) {
+        currentUnlocked = userSnap.data().unlockedNotes || []
+      }
+
+      if (!currentUnlocked.includes(ticket.categoryId)) {
+        currentUnlocked.push(ticket.categoryId)
+      }
+
+      await updateDoc(userRef, { unlockedNotes: currentUnlocked })
+      await updateDoc(doc(db, 'notePayments', ticket.id), { status: 'approved' })
+      fetchNotePayments()
+      alert('Access module verified and unlocked successfully!')
+    } catch (err) {
+      console.log('Approval error:', err)
+    }
   }
 
   const saveAbout = async (e) => {
@@ -300,8 +396,8 @@ function Admin() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {[
             { label: 'Total Orders', value: orders.length, icon: '📦' },
-            { label: 'Pending', value: orders.filter(o => o.status === 'pending').length, icon: '⏳' },
-            { label: 'Shipped', value: orders.filter(o => o.status === 'shipped').length, icon: '🚚' },
+            { label: 'Pending Book Orders', value: orders.filter(o => o.status === 'pending').length, icon: '⏳' },
+            { label: 'Pending Note Tickets', value: notePayments.filter(p => p.status === 'pending').length, icon: '📝' },
           ].map((stat, index) => (
             <div key={index} className="p-6 rounded-2xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow-lg text-center">
               <div className="text-4xl mb-2">{stat.icon}</div>
@@ -312,7 +408,7 @@ function Admin() {
         </div>
 
         <div className="flex flex-wrap gap-3 mb-8">
-          {['orders', 'blogs', 'videos', 'about', 'book', 'contact'].map((tab) => (
+          {['orders', 'blogs', 'videos', 'notes', 'about', 'book', 'contact'].map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-6 py-2 rounded-full font-medium capitalize transition ${activeTab === tab ? 'bg-orange-500 text-white shadow-lg' : 'bg-white/40 dark:bg-gray-700/40 text-gray-700 dark:text-gray-200 hover:bg-white/60'}`}>
               {tab}
@@ -415,7 +511,6 @@ function Admin() {
         {/* VIDEOS TAB */}
         {activeTab === 'videos' && (
           <div className="space-y-8">
-
             {/* Categories */}
             <div>
               <div className="flex justify-between items-center mb-4">
@@ -524,7 +619,7 @@ function Admin() {
 
               <div className="space-y-6">
                 {videosList.length === 0 && (
-                  <div className="text-center py-8 text-gray-500 dark:text-gray:400">No videos yet.</div>
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">No videos yet.</div>
                 )}
                 {categoriesList.map(cat => {
                   const catVideos = videosList.filter(v => v.categoryId === cat.id).sort((a, b) => (a.chapterNumber || 0) - (b.chapterNumber || 0))
@@ -556,6 +651,127 @@ function Admin() {
                 })}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* NOTES CMS TAB */}
+        {activeTab === 'notes' && (
+          <div className="space-y-8">
+            
+            {/* Note Directories Section */}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Note Categories</h2>
+                <button onClick={() => setShowCatNoteForm(!showCatNoteForm)} className="flex items-center gap-2 px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-medium transition">
+                  {showCatNoteForm ? <X size={16} /> : <Plus size={16} />}
+                  {showCatNoteForm ? 'Cancel' : 'Add Category'}
+                </button>
+              </div>
+
+              {showCatNoteForm && (
+                <form onSubmit={handleCreateNoteCategory} className="p-6 rounded-2xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow-lg mb-4 space-y-4">
+                  <h3 className="font-bold text-gray-800 dark:text-white">New Note Category</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <label className={labelClass}>Course/Category Name</label>
+                      <input type="text" placeholder="e.g. Organic Chemistry" required value={newCatTitle} onChange={(e) => setNewCatTitle(e.target.value)} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Price (৳)</label>
+                      <input type="number" placeholder="200" required value={newCatPrice} onChange={(e) => setNewCatPrice(e.target.value)} className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Short Description</label>
+                    <input type="text" placeholder="Summary or topics list included" required value={newCatDesc} onChange={(e) => setNewCatDesc(e.target.value)} className={inputClass} />
+                  </div>
+                  <button type="submit" className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-bold transition">Create Note Category</button>
+                </form>
+              )}
+
+              <div className="space-y-3">
+                {noteCategories.length === 0 && (
+                  <div className="text-center py-6 text-gray-500">No note folders configured yet.</div>
+                )}
+                {noteCategories.map(cat => (
+                  <div key={cat.id} className="p-4 rounded-2xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-gray-800 dark:text-white">{cat.title}</p>
+                      <p className="text-xs text-gray-500">Price: ৳{cat.price} • {cat.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Chapters PDF Sync Section */}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Upload Chapters</h2>
+                <button onClick={() => setShowNoteForm(!showNoteForm)} disabled={noteCategories.length === 0} className="flex items-center gap-2 px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-medium transition disabled:opacity-40">
+                  {showNoteForm ? <X size={16} /> : <Plus size={16} />}
+                  {showNoteForm ? 'Cancel' : 'Add Chapter Note'}
+                </button>
+              </div>
+
+              {showNoteForm && (
+                <form onSubmit={handleUploadNote} className="p-6 rounded-2xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow-lg space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>Chapter Title</label>
+                      <input type="text" placeholder="e.g. Aliphatic Hydrocarbons" required value={noteTitle} onChange={(e) => setNoteTitle(e.target.value)} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Note Directory Folder</label>
+                      <select required value={selectedNoteCategory} onChange={(e) => setSelectedNoteCategory(e.target.value)} className={inputClass}>
+                        <option value="">Select Target Directory</option>
+                        {noteCategories.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.title}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/40 dark:bg-gray-700/40">
+                      <label className={labelClass}>Complete Premium PDF File</label>
+                      <input type="file" accept=".pdf" required onChange={e => setFullPdf(e.target.files[0])} className="text-sm" />
+                    </div>
+                    <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/40 dark:bg-gray-700/40">
+                      <label className={labelClass}>Preview Sample File (First 1-2 Pages)</label>
+                      <input type="file" accept=".pdf" required onChange={e => setPreviewPdf(e.target.files[0])} className="text-sm" />
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={noteUploading} className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-bold transition">
+                    {noteUploading ? 'Uploading & Processing Document...' : 'Publish Note Chapter'}
+                  </button>
+                </form>
+              )}
+            </div>
+
+            {/* Note Subscriptions Verification Tickets Queue */}
+            <div>
+              <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Note Access Verification Queue</h2>
+              <div className="space-y-4">
+                {notePayments.filter(p => p.status === 'pending').length === 0 && (
+                  <p className="text-center py-6 text-gray-400 text-sm">No pending Note verification tickets found.</p>
+                )}
+                {notePayments.filter(p => p.status === 'pending').map(ticket => (
+                  <div key={ticket.id} className="p-6 rounded-2xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wide text-orange-500">{ticket.categoryTitle}</span>
+                      <h4 className="font-bold text-gray-800 dark:text-white mt-0.5">{ticket.userEmail}</h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">bKash: {ticket.bkashNumber} • TrxID: <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{ticket.trxId}</span></p>
+                    </div>
+                    <button onClick={() => handleApproveNotePayment(ticket)} className="px-5 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-bold rounded-full shadow-md flex items-center gap-1.5 transition">
+                      <Unlock size={14} /> Approve Access
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         )}
 

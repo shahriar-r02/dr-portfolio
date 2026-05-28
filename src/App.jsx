@@ -12,6 +12,7 @@ import Admin from './pages/Admin'
 import Auth from './pages/Auth'
 import Profile from './pages/Profile'
 import Videos from './pages/Videos'
+import Note from './pages/Note' // Added premium Notes directory reference
 
 function App() {
   const [darkMode, setDarkMode] = useState(false)
@@ -32,6 +33,7 @@ function App() {
             <Route path="/auth" element={<Auth />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/videos" element={<Videos />} />
+            <Route path="/notes" element={<Note />} /> {/* Added secure layout page coordinate */}
           </Routes>
           <Footer />
         </Router>

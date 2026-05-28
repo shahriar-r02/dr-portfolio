@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { BookOpen, Users, Award, ChevronRight, PenSquare, Play, Mail, ShoppingCart } from 'lucide-react'
+import { BookOpen, Users, Award, ChevronRight, PenSquare, Play, Mail, ShoppingCart, FileText } from 'lucide-react'
 import jitPhoto from '../assets/images/jit.jpg'
 import coverPhoto from '../assets/images/cover.jpg'
 // Importing the PDF from your assets folder path
@@ -141,23 +141,18 @@ function Home() {
               </div>
             </Link>
 
-            {/* Order Card */}
-            <Link to="/order" className="group p-6 rounded-3xl backdrop-blur-md bg-white/60 dark:bg-gray-800/50 border border-white/60 dark:border-gray-700/40 shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
+            {/* Lecture Notes Card — Replaced the redundant Order Card to preserve grid design balance */}
+            <Link to="/notes" className="group p-6 rounded-3xl backdrop-blur-md bg-white/60 dark:bg-gray-800/50 border border-white/60 dark:border-gray-700/40 shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
               <div className="w-14 h-14 bg-orange-100 dark:bg-orange-900/30 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-orange-500 transition-colors duration-300">
-                <ShoppingCart size={26} className="text-orange-500 group-hover:text-white transition-colors duration-300" />
+                <FileText size={26} className="text-orange-500 group-hover:text-white transition-colors duration-300" />
               </div>
-              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Buy the Book</h3>
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Lecture Notes</h3>
               <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4">
-                Order your copy via bKash. Pay online and we'll courier the book straight to your doorstep across Bangladesh.
+                Premium chapter-wise medical admission notes. Secure canvas streaming layout with custom pricing modules.
               </p>
-              <div className="flex items-center justify-between">
-                <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full text-xs font-medium">
-                  Dhaka ৳{bookData?.courierDhaka || '350'}
-                </span>
-                <span className="flex items-center gap-1 text-orange-500 text-sm font-medium group-hover:gap-2 transition-all">
-                  Order Now <ChevronRight size={16} />
-                </span>
-              </div>
+              <span className="flex items-center gap-1 text-orange-500 text-sm font-medium group-hover:gap-2 transition-all">
+                Study Materials <ChevronRight size={16} />
+              </span>
             </Link>
 
             {/* Blog Card */}

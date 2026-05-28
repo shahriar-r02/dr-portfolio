@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Sun, Moon, Menu, X, User, LogOut } from 'lucide-react'
+import { Sun, Moon, Menu, X, User, LogOut, FileText } from 'lucide-react'
 import { auth } from '../firebase/config'
 import { signOut } from 'firebase/auth'
 import { useAuth } from '../context/AuthContext'
@@ -34,10 +34,12 @@ function Navbar({ darkMode, setDarkMode }) {
           Jit <span className="text-orange-500">Biswas</span>
         </Link>
 
+        {/* Desktop Navigation Row */}
         <div className="hidden md:flex items-center gap-8">
           <Link to="/" className="text-gray-700 dark:text-gray-200 hover:text-orange-500 dark:hover:text-orange-400 transition font-medium">Home</Link>
           <Link to="/about" className="text-gray-700 dark:text-gray-200 hover:text-orange-500 dark:hover:text-orange-400 transition font-medium">About</Link>
           <Link to="/book" className="text-gray-700 dark:text-gray-200 hover:text-orange-500 dark:hover:text-orange-400 transition font-medium">Book</Link>
+          <Link to="/notes" className="text-gray-700 dark:text-gray-200 hover:text-orange-500 dark:hover:text-orange-400 transition font-medium">Notes</Link>
           <Link to="/blog" className="text-gray-700 dark:text-gray-200 hover:text-orange-500 dark:hover:text-orange-400 transition font-medium">Blog</Link>
           <Link to="/videos" className="text-gray-700 dark:text-gray-200 hover:text-orange-500 dark:hover:text-orange-400 transition font-medium">Lectures</Link>
           <Link to="/contact" className="text-gray-700 dark:text-gray-200 hover:text-orange-500 dark:hover:text-orange-400 transition font-medium">Contact</Link>
@@ -82,6 +84,9 @@ function Navbar({ darkMode, setDarkMode }) {
                   <Link to="/profile" onClick={() => setShowDropdown(false)} className="flex items-center gap-3 px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-gray-700 transition text-sm">
                     <User size={16} className="text-orange-500" /> My Profile
                   </Link>
+                  <Link to="/notes" onClick={() => setShowDropdown(false)} className="flex items-center gap-3 px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-gray-770 transition text-sm">
+                    <FileText size={16} className="text-orange-500" /> Lecture Notes
+                  </Link>
                   <Link to="/order" onClick={() => setShowDropdown(false)} className="flex items-center gap-3 px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-gray-700 transition text-sm">
                     <span className="text-orange-500">📦</span> Buy Book
                   </Link>
@@ -116,11 +121,13 @@ function Navbar({ darkMode, setDarkMode }) {
         </div>
       </div>
 
+      {/* Mobile Collapse View Layout */}
       {menuOpen && (
         <div className="md:hidden mt-4 pb-4 flex flex-col gap-4 px-4">
           <Link to="/" onClick={() => setMenuOpen(false)} className="text-gray-700 dark:text-gray-200 hover:text-orange-500 font-medium">Home</Link>
           <Link to="/about" onClick={() => setMenuOpen(false)} className="text-gray-700 dark:text-gray-200 hover:text-orange-500 font-medium">About</Link>
           <Link to="/book" onClick={() => setMenuOpen(false)} className="text-gray-700 dark:text-gray-200 hover:text-orange-500 font-medium">Book</Link>
+          <Link to="/notes" onClick={() => setMenuOpen(false)} className="text-gray-700 dark:text-gray-200 hover:text-orange-500 font-medium">Notes</Link>
           <Link to="/blog" onClick={() => setMenuOpen(false)} className="text-gray-700 dark:text-gray-200 hover:text-orange-500 font-medium">Blog</Link>
           <Link to="/videos" onClick={() => setMenuOpen(false)} className="text-gray-700 dark:text-gray-200 hover:text-orange-500 font-medium">Lectures</Link>
           <Link to="/contact" onClick={() => setMenuOpen(false)} className="text-gray-700 dark:text-gray-200 hover:text-orange-500 font-medium">Contact</Link>
@@ -147,6 +154,9 @@ function Navbar({ darkMode, setDarkMode }) {
                 </div>
                 <Link to="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium">
                   <User size={16} className="text-orange-500" /> My Profile
+                </Link>
+                <Link to="/notes" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium">
+                  <FileText size={16} className="text-orange-500" /> Lecture Notes
                 </Link>
                 <button onClick={() => { handleLogout(); setMenuOpen(false) }} className="flex items-center gap-2 text-red-500 font-medium">
                   <LogOut size={16} /> Logout
