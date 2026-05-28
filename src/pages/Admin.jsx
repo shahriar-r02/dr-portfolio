@@ -12,6 +12,8 @@ function Admin() {
   const [error, setError] = useState('')
   const [orders, setOrders] = useState([])
   const [blogs, setBlogs] = useState([])
+  const [videosList, setVideosList] = useState([])
+  const [categoriesList, setCategoriesList] = useState([])
   const [activeTab, setActiveTab] = useState('orders')
   const [loading, setLoading] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
@@ -20,11 +22,16 @@ function Admin() {
   const [newBlog, setNewBlog] = useState({ title: '', excerpt: '', category: 'Study Tips', emoji: '📚' })
   const [showBlogForm, setShowBlogForm] = useState(false)
 
+  const [newVideo, setNewVideo] = useState({ title: '', url: '', description: '', chapterNumber: 1 })
+  const [showVideoForm, setShowVideoForm] = useState(false)
+  const [selectedCategoryId, setSelectedCategoryId] = useState('')
+
+  const [newCategory, setNewCategory] = useState({ name: '', emoji: '📚', order: 1 })
+  const [showCategoryForm, setShowCategoryForm] = useState(false)
+
   const [about, setAbout] = useState({
     bio1: '', bio2: '', facebookLink: '', medilogyLink: '',
-    achievements: [
-      { title: '', proofUrl: '', proofType: '' },
-    ],
+    achievements: [{ title: '', proofUrl: '', proofType: '' }],
     education: [
       { school: 'Dhaka Medical College', degree: 'MBBS 4th Year Batch 89', year: 'Current' },
       { school: 'Cantonment College Jashore', degree: 'Higher Secondary Certificate', year: 'College' },
@@ -71,6 +78,8 @@ function Admin() {
   const fetchAll = async () => {
     fetchOrders()
     fetchBlogs()
+    fetchVideos()
+    fetchCategories()
     fetchSettings('about', setAbout)
     fetchSettings('book', setBook)
     fetchSettings('contact', setContact)
@@ -84,6 +93,16 @@ function Admin() {
   const fetchBlogs = async () => {
     const snap = await getDocs(collection(db, 'blogs'))
     setBlogs(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  }
+
+  const fetchVideos = async () => {
+    const snap = await getDocs(collection(db, 'videos'))
+    setVideosList(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  }
+
+  const fetchCategories = async () => {
+    const snap = await getDocs(collection(db, 'videoCategories'))
+    setCategoriesList(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0)))
   }
 
   const fetchSettings = async (docId, setter) => {
@@ -138,12 +157,7 @@ function Admin() {
     const cleanAchievements = about.achievements.filter(a => a.title.trim() !== '')
     const cleanEducation = about.education.filter(e => e.school.trim() !== '')
     const cleanExperience = about.experience.filter(e => e.role.trim() !== '')
-    await saveSettingsDoc('about', {
-      ...about,
-      achievements: cleanAchievements,
-      education: cleanEducation,
-      experience: cleanExperience
-    })
+    await saveSettingsDoc('about', { ...about, achievements: cleanAchievements, education: cleanEducation, experience: cleanExperience })
   }
 
   const saveBook = async (e) => {
@@ -188,11 +202,58 @@ function Admin() {
     }
   }
 
+  const addCategory = async (e) => {
+    e.preventDefault()
+    await addDoc(collection(db, 'videoCategories'), {
+      ...newCategory,
+      createdAt: serverTimestamp()
+    })
+    setNewCategory({ name: '', emoji: '📚', order: 1 })
+    setShowCategoryForm(false)
+    fetchCategories()
+  }
+
+  const deleteCategory = async (id) => {
+    if (window.confirm('Delete this category and all its videos?')) {
+      await deleteDoc(doc(db, 'videoCategories', id))
+      const snap = await getDocs(collection(db, 'videos'))
+      const toDelete = snap.docs.filter(d => d.data().categoryId === id)
+      for (const d of toDelete) await deleteDoc(doc(db, 'videos', d.id))
+      fetchCategories()
+      fetchVideos()
+    }
+  }
+
+  const addVideo = async (e) => {
+    e.preventDefault()
+    await addDoc(collection(db, 'videos'), {
+      ...newVideo,
+      categoryId: selectedCategoryId,
+      createdAt: serverTimestamp()
+    })
+    setNewVideo({ title: '', url: '', description: '', chapterNumber: 1 })
+    setShowVideoForm(false)
+    fetchVideos()
+  }
+
+  const deleteVideo = async (id) => {
+    if (window.confirm('Delete this video?')) {
+      await deleteDoc(doc(db, 'videos', id))
+      fetchVideos()
+    }
+  }
+
   const getStatusColor = (status) => {
     if (status === 'pending') return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
     if (status === 'verified') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
     if (status === 'shipped') return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
     return ''
+  }
+
+  const getYouTubeId = (url) => {
+    const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/
+    const match = url.match(regExp)
+    return match && match[7].length === 11 ? match[7] : null
   }
 
   if (!loggedIn) {
@@ -236,7 +297,6 @@ function Admin() {
           </div>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {[
             { label: 'Total Orders', value: orders.length, icon: '📦' },
@@ -251,9 +311,8 @@ function Admin() {
           ))}
         </div>
 
-        {/* Tabs */}
         <div className="flex flex-wrap gap-3 mb-8">
-          {['orders', 'blogs', 'about', 'book', 'contact'].map((tab) => (
+          {['orders', 'blogs', 'videos', 'about', 'book', 'contact'].map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-6 py-2 rounded-full font-medium capitalize transition ${activeTab === tab ? 'bg-orange-500 text-white shadow-lg' : 'bg-white/40 dark:bg-gray-700/40 text-gray-700 dark:text-gray-200 hover:bg-white/60'}`}>
               {tab}
@@ -353,6 +412,153 @@ function Admin() {
           </div>
         )}
 
+        {/* VIDEOS TAB */}
+        {activeTab === 'videos' && (
+          <div className="space-y-8">
+
+            {/* Categories */}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Categories / Playlists</h2>
+                <button onClick={() => setShowCategoryForm(!showCategoryForm)} className="flex items-center gap-2 px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-medium transition">
+                  {showCategoryForm ? <X size={16} /> : <Plus size={16} />}
+                  {showCategoryForm ? 'Cancel' : 'Add Category'}
+                </button>
+              </div>
+
+              {showCategoryForm && (
+                <form onSubmit={addCategory} className="p-6 rounded-2xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow-lg mb-4 space-y-4">
+                  <h3 className="font-bold text-gray-800 dark:text-white">New Category</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <label className={labelClass}>Category Name</label>
+                      <input type="text" placeholder="e.g. Organic Chemistry" required value={newCategory.name} onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Emoji</label>
+                      <input type="text" placeholder="📚" value={newCategory.emoji} onChange={(e) => setNewCategory({ ...newCategory, emoji: e.target.value })} className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Display Order (1 = first)</label>
+                    <input type="number" min="1" value={newCategory.order} onChange={(e) => setNewCategory({ ...newCategory, order: parseInt(e.target.value) })} className={inputClass} />
+                  </div>
+                  <button type="submit" className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-bold transition">Create Category</button>
+                </form>
+              )}
+
+              <div className="space-y-3">
+                {categoriesList.length === 0 && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">No categories yet. Create one first!</div>
+                )}
+                {categoriesList.map((cat) => (
+                  <div key={cat.id} className="p-4 rounded-2xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{cat.emoji}</span>
+                      <div>
+                        <p className="font-bold text-gray-800 dark:text-white">{cat.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Order: {cat.order} • {videosList.filter(v => v.categoryId === cat.id).length} videos</p>
+                      </div>
+                    </div>
+                    <button onClick={() => deleteCategory(cat.id)} className="flex items-center gap-1 px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-sm font-medium hover:bg-red-200 transition">
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Videos */}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Videos</h2>
+                <button
+                  onClick={() => setShowVideoForm(!showVideoForm)}
+                  disabled={categoriesList.length === 0}
+                  className="flex items-center gap-2 px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {showVideoForm ? <X size={16} /> : <Plus size={16} />}
+                  {showVideoForm ? 'Cancel' : 'Add Video'}
+                </button>
+              </div>
+
+              {categoriesList.length === 0 && (
+                <div className="p-4 rounded-xl bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 text-sm mb-4">
+                  ⚠️ Create a category first before adding videos!
+                </div>
+              )}
+
+              {showVideoForm && (
+                <form onSubmit={addVideo} className="p-6 rounded-2xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow-lg mb-6 space-y-4">
+                  <h3 className="font-bold text-gray-800 dark:text-white">Add New Video</h3>
+                  <div>
+                    <label className={labelClass}>Category</label>
+                    <select required value={selectedCategoryId} onChange={(e) => setSelectedCategoryId(e.target.value)} className={inputClass}>
+                      <option value="">Select a category</option>
+                      {categoriesList.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.emoji} {cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>Video Title</label>
+                      <input type="text" placeholder="e.g. Introduction to Organic Chemistry" required value={newVideo.title} onChange={(e) => setNewVideo({ ...newVideo, title: e.target.value })} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Chapter Number</label>
+                      <input type="number" min="1" placeholder="1" required value={newVideo.chapterNumber || ''} onChange={(e) => setNewVideo({ ...newVideo, chapterNumber: parseInt(e.target.value) })} className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelClass}>YouTube URL</label>
+                    <input type="url" placeholder="https://www.youtube.com/watch?v=..." required value={newVideo.url} onChange={(e) => setNewVideo({ ...newVideo, url: e.target.value })} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Description (optional)</label>
+                    <textarea placeholder="What is this video about?" value={newVideo.description} onChange={(e) => setNewVideo({ ...newVideo, description: e.target.value })} rows={2} className={inputClass} />
+                  </div>
+                  <button type="submit" className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-bold transition">Add Video</button>
+                </form>
+              )}
+
+              <div className="space-y-6">
+                {videosList.length === 0 && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray:400">No videos yet.</div>
+                )}
+                {categoriesList.map(cat => {
+                  const catVideos = videosList.filter(v => v.categoryId === cat.id).sort((a, b) => (a.chapterNumber || 0) - (b.chapterNumber || 0))
+                  if (catVideos.length === 0) return null
+                  return (
+                    <div key={cat.id}>
+                      <p className="font-bold text-orange-500 text-sm mb-3">{cat.emoji} {cat.name}</p>
+                      <div className="space-y-2">
+                        {catVideos.map((video) => (
+                          <div key={video.id} className="p-4 rounded-xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow flex justify-between items-start gap-4">
+                            <div className="flex gap-3 flex-1 min-w-0">
+                              <img src={`https://img.youtube.com/vi/${getYouTubeId(video.url)}/default.jpg`} alt={video.title} className="w-20 h-14 rounded-lg object-cover flex-shrink-0" />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 text-xs rounded-full">Ch. {video.chapterNumber}</span>
+                                  <h3 className="font-bold text-gray-800 dark:text-white text-sm truncate">{video.title}</h3>
+                                </div>
+                                {video.description && <p className="text-gray-500 text-xs mt-1 line-clamp-1">{video.description}</p>}
+                              </div>
+                            </div>
+                            <button onClick={() => deleteVideo(video.id)} className="flex-shrink-0 flex items-center gap-1 px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-medium hover:bg-red-200 transition">
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ABOUT TAB */}
         {activeTab === 'about' && (
           <form onSubmit={saveAbout} className="space-y-8 p-8 rounded-3xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow-xl">
@@ -361,7 +567,6 @@ function Admin() {
               <h2 className="text-xl font-bold text-gray-800 dark:text-white">Edit About Page</h2>
             </div>
 
-            {/* Bio */}
             <div className="space-y-4">
               <h3 className="font-bold text-orange-500 text-sm uppercase tracking-wide border-b border-orange-200 dark:border-orange-800 pb-2">Bio</h3>
               <div>
@@ -384,148 +589,77 @@ function Admin() {
               </div>
             </div>
 
-            {/* Achievements */}
             <div className="space-y-4">
               <h3 className="font-bold text-orange-500 text-sm uppercase tracking-wide border-b border-orange-200 dark:border-orange-800 pb-2">Achievements</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Add each achievement with optional proof (image or PDF certificate)</p>
               {about.achievements.map((ach, i) => (
                 <div key={i} className="p-4 rounded-xl bg-white/40 dark:bg-gray-700/40 border border-white/30 dark:border-gray-600 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="font-medium text-orange-500 text-sm">Achievement {i + 1}</span>
-                    <button type="button" onClick={() => setAbout({ ...about, achievements: about.achievements.filter((_, idx) => idx !== i) })}
-                      className="text-red-400 hover:text-red-600"><X size={16} /></button>
+                    <button type="button" onClick={() => setAbout({ ...about, achievements: about.achievements.filter((_, idx) => idx !== i) })} className="text-red-400 hover:text-red-600"><X size={16} /></button>
                   </div>
-
-                  {/* Title */}
-                  <input
-                    type="text"
-                    value={ach.title}
-                    onChange={(e) => {
-                      const updated = [...about.achievements]
-                      updated[i] = { ...updated[i], title: e.target.value }
-                      setAbout({ ...about, achievements: updated })
-                    }}
-                    placeholder="e.g. Best Teacher Award at Medilogy"
-                    className={inputClass}
-                  />
-
-                  {/* Proof Upload */}
+                  <input type="text" value={ach.title}
+                    onChange={(e) => { const updated = [...about.achievements]; updated[i] = { ...updated[i], title: e.target.value }; setAbout({ ...about, achievements: updated }) }}
+                    placeholder="e.g. Best Teacher Award at Medilogy" className={inputClass} />
                   <div className="flex items-center gap-3">
                     <label className="flex-1 cursor-pointer">
                       <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-dashed transition ${ach.proofUrl ? 'border-green-400 bg-green-50 dark:bg-green-900/20' : 'border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-900/10'}`}>
-                        {uploadingIndex === i ? (
-                          <span className="text-sm text-orange-500">Uploading...</span>
-                        ) : ach.proofUrl ? (
-                          <>
-                            <span className="text-green-500 text-sm">✅ Proof uploaded</span>
-                            <span className="text-xs text-gray-500">({ach.proofType})</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload size={16} className="text-orange-400" />
-                            <span className="text-sm text-orange-500">Upload proof (image or PDF)</span>
-                          </>
-                        )}
+                        {uploadingIndex === i ? <span className="text-sm text-orange-500">Uploading...</span>
+                          : ach.proofUrl ? <><span className="text-green-500 text-sm">✅ Proof uploaded</span><span className="text-xs text-gray-500">({ach.proofType})</span></>
+                          : <><Upload size={16} className="text-orange-400" /><span className="text-sm text-orange-500">Upload proof (image or PDF)</span></>}
                       </div>
-                      <input
-                        type="file"
-                        accept="image/*,.pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files[0]) handleProofUpload(e.target.files[0], i)
-                        }}
-                      />
+                      <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { if (e.target.files[0]) handleProofUpload(e.target.files[0], i) }} />
                     </label>
-
-                    {/* Preview */}
                     {ach.proofUrl && (
-                      <a href={ach.proofUrl} target="_blank" rel="noreferrer"
-                        className="px-3 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-medium hover:bg-orange-200 transition">
-                        View
-                      </a>
+                      <a href={ach.proofUrl} target="_blank" rel="noreferrer" className="px-3 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-medium hover:bg-orange-200 transition">View</a>
                     )}
-
-                    {/* Remove proof */}
                     {ach.proofUrl && (
-                      <button type="button"
-                        onClick={() => {
-                          const updated = [...about.achievements]
-                          updated[i] = { ...updated[i], proofUrl: '', proofType: '' }
-                          setAbout({ ...about, achievements: updated })
-                        }}
-                        className="px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-xl text-sm hover:bg-red-200 transition">
-                        Remove
-                      </button>
+                      <button type="button" onClick={() => { const updated = [...about.achievements]; updated[i] = { ...updated[i], proofUrl: '', proofType: '' }; setAbout({ ...about, achievements: updated }) }} className="px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-xl text-sm hover:bg-red-200 transition">Remove</button>
                     )}
                   </div>
                 </div>
               ))}
-              <button type="button"
-                onClick={() => setAbout({ ...about, achievements: [...about.achievements, { title: '', proofUrl: '', proofType: '' }] })}
-                className="flex items-center gap-2 text-orange-500 font-medium text-sm hover:text-orange-600">
+              <button type="button" onClick={() => setAbout({ ...about, achievements: [...about.achievements, { title: '', proofUrl: '', proofType: '' }] })} className="flex items-center gap-2 text-orange-500 font-medium text-sm hover:text-orange-600">
                 <Plus size={16} /> Add Achievement
               </button>
             </div>
 
-            {/* Education */}
             <div className="space-y-3">
               <h3 className="font-bold text-orange-500 text-sm uppercase tracking-wide border-b border-orange-200 dark:border-orange-800 pb-2">Education</h3>
               {(about.education || []).map((edu, i) => (
                 <div key={i} className="p-4 rounded-xl bg-white/40 dark:bg-gray-700/40 border border-white/30 dark:border-gray-600 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="font-medium text-gray-600 dark:text-gray-400 text-sm">Entry {i + 1}</span>
-                    <button type="button" onClick={() => setAbout({ ...about, education: about.education.filter((_, idx) => idx !== i) })}
-                      className="text-red-400 hover:text-red-600"><X size={16} /></button>
+                    <button type="button" onClick={() => setAbout({ ...about, education: about.education.filter((_, idx) => idx !== i) })} className="text-red-400 hover:text-red-600"><X size={16} /></button>
                   </div>
-                  <input type="text" value={edu.school}
-                    onChange={(e) => { const u = [...about.education]; u[i] = { ...u[i], school: e.target.value }; setAbout({ ...about, education: u }) }}
-                    placeholder="School / College name" className={inputClass} />
+                  <input type="text" value={edu.school} onChange={(e) => { const u = [...about.education]; u[i] = { ...u[i], school: e.target.value }; setAbout({ ...about, education: u }) }} placeholder="School / College name" className={inputClass} />
                   <div className="flex gap-3">
-                    <input type="text" value={edu.degree}
-                      onChange={(e) => { const u = [...about.education]; u[i] = { ...u[i], degree: e.target.value }; setAbout({ ...about, education: u }) }}
-                      placeholder="Degree / Level" className={inputClass} />
-                    <input type="text" value={edu.year}
-                      onChange={(e) => { const u = [...about.education]; u[i] = { ...u[i], year: e.target.value }; setAbout({ ...about, education: u }) }}
-                      placeholder="Year" className="w-32 px-4 py-3 rounded-xl bg-white/50 dark:bg-gray-700/50 border border-white/40 dark:border-gray-600 text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                    <input type="text" value={edu.degree} onChange={(e) => { const u = [...about.education]; u[i] = { ...u[i], degree: e.target.value }; setAbout({ ...about, education: u }) }} placeholder="Degree / Level" className={inputClass} />
+                    <input type="text" value={edu.year} onChange={(e) => { const u = [...about.education]; u[i] = { ...u[i], year: e.target.value }; setAbout({ ...about, education: u }) }} placeholder="Year" className="w-32 px-4 py-3 rounded-xl bg-white/50 dark:bg-gray-700/50 border border-white/40 dark:border-gray-600 text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400" />
                   </div>
                 </div>
               ))}
-              <button type="button"
-                onClick={() => setAbout({ ...about, education: [...(about.education || []), { school: '', degree: '', year: '' }] })}
-                className="flex items-center gap-2 text-orange-500 font-medium text-sm hover:text-orange-600">
+              <button type="button" onClick={() => setAbout({ ...about, education: [...(about.education || []), { school: '', degree: '', year: '' }] })} className="flex items-center gap-2 text-orange-500 font-medium text-sm hover:text-orange-600">
                 <Plus size={16} /> Add Education
               </button>
             </div>
 
-            {/* Experience */}
             <div className="space-y-3">
               <h3 className="font-bold text-orange-500 text-sm uppercase tracking-wide border-b border-orange-200 dark:border-orange-800 pb-2">Experience</h3>
               {(about.experience || []).map((exp, i) => (
                 <div key={i} className="p-4 rounded-xl bg-white/40 dark:bg-gray-700/40 border border-white/30 dark:border-gray-600 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="font-medium text-gray-600 dark:text-gray-400 text-sm">Entry {i + 1}</span>
-                    <button type="button" onClick={() => setAbout({ ...about, experience: about.experience.filter((_, idx) => idx !== i) })}
-                      className="text-red-400 hover:text-red-600"><X size={16} /></button>
+                    <button type="button" onClick={() => setAbout({ ...about, experience: about.experience.filter((_, idx) => idx !== i) })} className="text-red-400 hover:text-red-600"><X size={16} /></button>
                   </div>
                   <div className="flex gap-3">
-                    <input type="text" value={exp.role}
-                      onChange={(e) => { const u = [...about.experience]; u[i] = { ...u[i], role: e.target.value }; setAbout({ ...about, experience: u }) }}
-                      placeholder="Role / Title" className={inputClass} />
-                    <input type="text" value={exp.place}
-                      onChange={(e) => { const u = [...about.experience]; u[i] = { ...u[i], place: e.target.value }; setAbout({ ...about, experience: u }) }}
-                      placeholder="Place / Company" className={inputClass} />
-                    <input type="text" value={exp.duration}
-                      onChange={(e) => { const u = [...about.experience]; u[i] = { ...u[i], duration: e.target.value }; setAbout({ ...about, experience: u }) }}
-                      placeholder="Duration" className="w-36 px-4 py-3 rounded-xl bg-white/50 dark:bg-gray-700/50 border border-white/40 dark:border-gray-600 text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                    <input type="text" value={exp.role} onChange={(e) => { const u = [...about.experience]; u[i] = { ...u[i], role: e.target.value }; setAbout({ ...about, experience: u }) }} placeholder="Role / Title" className={inputClass} />
+                    <input type="text" value={exp.place} onChange={(e) => { const u = [...about.experience]; u[i] = { ...u[i], place: e.target.value }; setAbout({ ...about, experience: u }) }} placeholder="Place / Company" className={inputClass} />
+                    <input type="text" value={exp.duration} onChange={(e) => { const u = [...about.experience]; u[i] = { ...u[i], duration: e.target.value }; setAbout({ ...about, experience: u }) }} placeholder="Duration" className="w-36 px-4 py-3 rounded-xl bg-white/50 dark:bg-gray-700/50 border border-white/40 dark:border-gray-600 text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400" />
                   </div>
-                  <textarea value={exp.desc}
-                    onChange={(e) => { const u = [...about.experience]; u[i] = { ...u[i], desc: e.target.value }; setAbout({ ...about, experience: u }) }}
-                    placeholder="Description" rows={2} className={inputClass} />
+                  <textarea value={exp.desc} onChange={(e) => { const u = [...about.experience]; u[i] = { ...u[i], desc: e.target.value }; setAbout({ ...about, experience: u }) }} placeholder="Description" rows={2} className={inputClass} />
                 </div>
               ))}
-              <button type="button"
-                onClick={() => setAbout({ ...about, experience: [...(about.experience || []), { role: '', place: '', desc: '', duration: '' }] })}
-                className="flex items-center gap-2 text-orange-500 font-medium text-sm hover:text-orange-600">
+              <button type="button" onClick={() => setAbout({ ...about, experience: [...(about.experience || []), { role: '', place: '', desc: '', duration: '' }] })} className="flex items-center gap-2 text-orange-500 font-medium text-sm hover:text-orange-600">
                 <Plus size={16} /> Add Experience
               </button>
             </div>
@@ -616,11 +750,6 @@ function Admin() {
             <div>
               <label className={labelClass}>Facebook Profile Link</label>
               <input type="url" value={contact.facebook} onChange={(e) => setContact({ ...contact, facebook: e.target.value })} placeholder="https://facebook.com/yourprofile" className={inputClass} />
-            </div>
-            <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                <strong>Note:</strong> WhatsApp number must include country code. Example: 8801822496928
-              </p>
             </div>
             <button type="submit" className="flex items-center gap-2 px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-bold transition shadow-lg">
               <Save size={18} /> Save Contact Info

@@ -11,6 +11,7 @@ import Contact from './pages/Contact'
 import Admin from './pages/Admin'
 import Auth from './pages/Auth'
 import Profile from './pages/Profile'
+import Videos from './pages/Videos'
 
 function App() {
   const [darkMode, setDarkMode] = useState(false)
@@ -30,6 +31,7 @@ function App() {
             <Route path="/admin" element={<Admin />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/videos" element={<Videos />} />
           </Routes>
           <Footer />
         </Router>

@@ -4,7 +4,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail
 } from 'firebase/auth'
 import { useNavigate } from 'react-router-dom'
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
@@ -16,6 +17,7 @@ function Auth() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [resetMsg, setResetMsg] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
@@ -23,6 +25,7 @@ function Auth() {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setResetMsg('')
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password)
@@ -54,24 +57,34 @@ function Auth() {
     setLoading(false)
   }
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email address first.')
+      return
+    }
+    try {
+      await sendPasswordResetEmail(auth, email)
+      setResetMsg('Password reset email sent! Check your inbox.')
+      setError('')
+    } catch (err) {
+      setError('Could not send reset email. Check your email address.')
+    }
+  }
+
   return (
     <div className="pt-24 px-6 pb-16 min-h-screen flex items-center justify-center">
       <div className="w-full max-w-md">
-
-        {/* Card */}
         <div className="p-8 rounded-3xl backdrop-blur-md bg-white/30 dark:bg-gray-800/30 border border-white/40 dark:border-gray-700/40 shadow-xl">
 
-          {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
               {isLogin ? 'Welcome Back' : 'Create Account'}
             </h1>
             <p className="text-gray-600 dark:text-gray-300 mt-2">
-              {isLogin ? 'Login to buy books and track orders' : 'Sign up to start buying books'}
+              {isLogin ? 'Login to buy books and watch lectures' : 'Sign up to get started'}
             </p>
           </div>
 
-          {/* Google Button */}
           <button
             onClick={handleGoogle}
             disabled={loading}
@@ -86,63 +99,43 @@ function Auth() {
             Continue with Google
           </button>
 
-          {/* Divider */}
           <div className="flex items-center gap-4 mb-6">
             <div className="flex-1 h-px bg-gray-200 dark:bg-gray-600" />
             <span className="text-sm text-gray-500 dark:text-gray-400">or</span>
             <div className="flex-1 h-px bg-gray-200 dark:bg-gray-600" />
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-
-            {/* Name field - signup only */}
             {!isLogin && (
               <div className="relative">
                 <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Your full name"
-                  required
-                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/50 dark:bg-gray-700/50 border border-white/40 dark:border-gray-600 text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" required
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/50 dark:bg-gray-700/50 border border-white/40 dark:border-gray-600 text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400" />
               </div>
             )}
 
-            {/* Email */}
             <div className="relative">
               <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email address"
-                required
-                className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/50 dark:bg-gray-700/50 border border-white/40 dark:border-gray-600 text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" required
+                className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/50 dark:bg-gray-700/50 border border-white/40 dark:border-gray-600 text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>
 
-            {/* Password */}
             <div className="relative">
               <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                required
-                className="w-full pl-11 pr-11 py-3 rounded-xl bg-white/50 dark:bg-gray-700/50 border border-white/40 dark:border-gray-600 text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
+              <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required
+                className="w-full pl-11 pr-11 py-3 rounded-xl bg-white/50 dark:bg-gray-700/50 border border-white/40 dark:border-gray-600 text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+
+            {isLogin && (
+              <div className="text-right">
+                <button type="button" onClick={handleForgotPassword} className="text-sm text-orange-500 hover:underline">
+                  Forgot Password?
+                </button>
+              </div>
+            )}
 
             {error && (
               <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
@@ -150,22 +143,22 @@ function Auth() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-bold transition shadow-lg shadow-orange-200 disabled:opacity-50"
-            >
+            {resetMsg && (
+              <div className="p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                <p className="text-green-600 dark:text-green-400 text-sm">{resetMsg}</p>
+              </div>
+            )}
+
+            <button type="submit" disabled={loading}
+              className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-bold transition shadow-lg shadow-orange-200 disabled:opacity-50">
               {loading ? 'Please wait...' : isLogin ? 'Login' : 'Create Account'}
             </button>
           </form>
 
-          {/* Switch */}
           <p className="text-center text-gray-600 dark:text-gray-300 mt-6 text-sm">
             {isLogin ? "Don't have an account?" : "Already have an account?"}
-            <button
-              onClick={() => { setIsLogin(!isLogin); setError('') }}
-              className="text-orange-500 font-medium ml-1 hover:underline"
-            >
+            <button onClick={() => { setIsLogin(!isLogin); setError(''); setResetMsg('') }}
+              className="text-orange-500 font-medium ml-1 hover:underline">
               {isLogin ? 'Sign Up' : 'Login'}
             </button>
           </p>
